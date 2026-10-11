@@ -131,7 +131,8 @@ agents interroger en boucle.
 - Module précédent : **Passer le studio à l'échelle** — dépôt
   [`clic-par-clic-studio3d-02-echelle`](https://github.com/guilhem-/clic-par-clic-studio3d-02-echelle).
 - Module suivant : **Marquer les rendus générés par IA** (métadonnées IPTC et XMP, mention visible
-  au choix) — dépôt `clic-par-clic-studio3d-04-marquage` (à venir).
+  au choix) — dépôt
+  [`clic-par-clic-studio3d-04-marquage`](https://github.com/guilhem-/clic-par-clic-studio3d-04-marquage).
 
 ## Licence
 
