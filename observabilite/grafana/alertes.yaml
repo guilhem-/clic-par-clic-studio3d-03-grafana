@@ -1,0 +1,31 @@
+# Règle d'alerte (module s3d03) : plus de cinq demandes en attente pendant trente secondes.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: studio3d
+    folder: Studio 3D
+    interval: 10s               # évaluée toutes les dix secondes
+    rules:
+      - uid: studio3d-file-longue
+        title: File du studio trop longue
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: max(studio_file_attente), instant: true }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions: [{ evaluator: { type: gt, params: [5] } }]   # seuil : plus de cinq demandes
+        for: 30s                # pendant trente secondes
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: Plus de cinq demandes attendent depuis trente secondes.
+          __dashboardUid__: studio3d   # lien vers le panneau « File d'attente et workers »
+          __panelId__: "5"
+        labels: { service: studio3d }

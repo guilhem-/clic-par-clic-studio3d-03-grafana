@@ -1,0 +1,12 @@
+# Source de données de Grafana (module s3d03) : le Prometheus du cluster, non modifiable dans l'interface.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus.observabilite.svc.cluster.local:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 5s          # même rythme que la lecture des mesures
