@@ -1,23 +1,23 @@
-# Observabilité du studio 3D (module s3d03) : Prometheus lit les mesures des pods du studio, Grafana
-# les montre (source, tableau de bord et alerte provisionnés par fichiers, rien à régler à la souris).
-# Manifestes simples plutôt qu'un chart Helm complet : deux déploiements, quelques fichiers à lire.
-#   ./observabilite/deployer.sh   (crée d'abord les ConfigMaps et le secret)
+# Observability of the 3D studio (module s3d03): Prometheus reads the metrics of the studio pods, Grafana
+# shows them (data source, dashboard and alert provisioned from files, nothing to set up with the mouse).
+# Simple manifests rather than a full Helm chart: two deployments, a few files to read.
+#   ./observability/deploy.sh   (creates the ConfigMaps and the secret first)
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: observabilite
+  name: observability
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: prometheus
-  namespace: observabilite
+  namespace: observability
 ---
-# Prometheus a seulement le droit de lister les pods de l'espace du studio, rien d'autre.
+# Prometheus is only allowed to list the pods of the studio namespace, nothing else.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: prometheus-lecture
+  name: prometheus-read
   namespace: studio3d
 rules:
   - apiGroups: [""]
@@ -27,17 +27,17 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: prometheus-lecture
+  name: prometheus-read
   namespace: studio3d
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: prometheus-lecture }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: prometheus-read }
 subjects:
-  - { kind: ServiceAccount, name: prometheus, namespace: observabilite }
+  - { kind: ServiceAccount, name: prometheus, namespace: observability }
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: observabilite
+  namespace: observability
 spec:
   replicas: 1
   strategy: { type: Recreate }
@@ -50,15 +50,15 @@ spec:
       serviceAccountName: prometheus
       containers:
         - name: prometheus
-          image: prom/prometheus:v3.13.4      # ligne LTS 3.13
+          image: prom/prometheus:v3.13.4      # LTS line 3.13
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
-            - --storage.tsdb.retention.time=1d  # tournage : un jour suffit
+            - --storage.tsdb.retention.time=1d  # one day is enough here
           ports: [{ containerPort: 9090 }]
           volumeMounts:
             - { name: configuration, mountPath: /etc/prometheus }
-            - { name: donnees, mountPath: /prometheus }
+            - { name: data, mountPath: /prometheus }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 1Gi }
@@ -67,13 +67,13 @@ spec:
             periodSeconds: 5
       volumes:
         - { name: configuration, configMap: { name: prometheus } }
-        - { name: donnees, emptyDir: {} }      # temporaire : courbes remises à zéro au redémarrage
+        - { name: data, emptyDir: {} }      # temporary: curves reset on restart
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
-  namespace: observabilite
+  namespace: observability
 spec:
   selector: { app: prometheus }
   ports: [{ port: 9090, targetPort: 9090 }]
@@ -82,7 +82,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
-  namespace: observabilite
+  namespace: observability
 spec:
   replicas: 1
   strategy: { type: Recreate }
@@ -98,53 +98,53 @@ spec:
           ports: [{ containerPort: 3000 }]
           env:
             - name: GF_SECURITY_ADMIN_PASSWORD
-              valueFrom: { secretKeyRef: { name: grafana-admin, key: mot-de-passe } }
-            - { name: GF_AUTH_ANONYMOUS_ENABLED, value: "true" }       # lecture sans compte
+              valueFrom: { secretKeyRef: { name: grafana-admin, key: password } }
+            - { name: GF_AUTH_ANONYMOUS_ENABLED, value: "true" }       # read without an account
             - { name: GF_AUTH_ANONYMOUS_ORG_ROLE, value: Viewer }
             - { name: GF_AUTH_ANONYMOUS_HIDE_VERSION, value: "true" }
-            - name: GF_USERS_DEFAULT_LANGUAGE                          # fr-FR, en-US ou de-DE (deployer.mjs --langue)
-              valueFrom: { configMapKeyRef: { name: grafana-langue, key: langue } }
+            - name: GF_USERS_DEFAULT_LANGUAGE                          # en-US, fr-FR or de-DE (deploy.sh argument)
+              valueFrom: { configMapKeyRef: { name: grafana-language, key: language } }
             - { name: GF_USERS_DEFAULT_THEME, value: dark }
-            - { name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH, value: /var/lib/grafana/tableaux/studio3d.json }
+            - { name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH, value: /var/lib/grafana/dashboards/studio3d.json }
             - { name: GF_ANALYTICS_REPORTING_ENABLED, value: "false" }
             - { name: GF_ANALYTICS_CHECK_FOR_UPDATES, value: "false" }
             - { name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES, value: "false" }
             - { name: GF_NEWS_NEWS_FEED_ENABLED, value: "false" }
-            - { name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true" }  # aucune extension téléchargée au démarrage
+            - { name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true" }  # no plugin downloaded at startup
           volumeMounts:
-            - { name: donnees, mountPath: /var/lib/grafana }
+            - { name: data, mountPath: /var/lib/grafana }
             - { name: sources, mountPath: /etc/grafana/provisioning/datasources }
-            - { name: fournisseurs, mountPath: /etc/grafana/provisioning/dashboards }
-            - { name: alertes, mountPath: /etc/grafana/provisioning/alerting }
-            - { name: tableaux, mountPath: /var/lib/grafana/tableaux }
+            - { name: providers, mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: alerts, mountPath: /etc/grafana/provisioning/alerting }
+            - { name: dashboards, mountPath: /var/lib/grafana/dashboards }
           resources:
             requests: { cpu: 200m, memory: 512Mi }
-            limits: { memory: 3Gi }        # Grafana 13 dépasse 1 Gio sous rafraîchissement continu
+            limits: { memory: 3Gi }        # Grafana 13 exceeds 1 GiB under continuous refresh
           readinessProbe:
             httpGet: { path: /api/health, port: 3000 }
             periodSeconds: 5
       volumes:
-        - { name: donnees, emptyDir: {} }      # temporaire : historique des alertes remis à zéro
+        - { name: data, emptyDir: {} }      # temporary: alert history reset
         - { name: sources, configMap: { name: grafana-sources } }
-        - { name: fournisseurs, configMap: { name: grafana-tableaux } }
-        - { name: alertes, configMap: { name: grafana-alertes } }
-        - { name: tableaux, configMap: { name: grafana-tableau-studio3d } }
+        - { name: providers, configMap: { name: grafana-dashboards } }
+        - { name: alerts, configMap: { name: grafana-alerts } }
+        - { name: dashboards, configMap: { name: grafana-dashboard-studio3d } }
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: grafana
-  namespace: observabilite
+  namespace: observability
 spec:
   selector: { app: grafana }
   ports: [{ port: 3000, targetPort: 3000 }]
 ---
-# Grafana publié par Traefik, en lecture anonyme ; Prometheus reste interne au cluster.
+# Grafana published by Traefik, anonymous read only; Prometheus stays internal to the cluster.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: grafana
-  namespace: observabilite
+  namespace: observability
 spec:
   ingressClassName: traefik
   rules:

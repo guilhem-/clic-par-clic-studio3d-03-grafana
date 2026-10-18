@@ -1,141 +1,140 @@
-# Observer le studio 3D avec Grafana — mesures Prometheus, tableau de bord et alerte
+# Monitoring the 3D studio with Grafana — Prometheus metrics, dashboard and alert
 
-Code de la démonstration du module 3 de la série « Clic par clic » **Créer un service d'IA
-compatible agentique : le studio 3D**.
+Code for module 3 of the “Click by Click” series **Building an agent-ready AI service: the 3D studio**
+(also published in French as « Clic par clic » and in German as « Klick für Klick »).
 
-Vidéo : {{video}}
+Video: {{video}}
 
-## But
+## Goal
 
-Un service appelé par des agents ne se fatigue pas d'être sollicité : un agent peut envoyer des
-dizaines de demandes d'affilée, réessayer en boucle, ou demander l'état d'un rendu toutes les deux
-secondes. Ce dépôt rend le studio du module 2 **observable**, pour voir la charge et la santé du
-service, et repérer un agent trop bavard, avant la panne :
+A service called by agents never gets tired of being asked: an agent can send dozens of requests
+in a row, retry in a loop, or ask for the status of a render every two seconds. This repository
+makes the module 2 studio **observable**, to see the load and the health of the service, and to
+spot an agent that is too chatty, before the outage:
 
-- le **serveur MCP** et les **workers** publient des mesures Prometheus (`studio/metriques.py`) :
-  appels par outil MCP, durée des rendus, attente dans la file, résultats, longueur de la file,
-  rendus en cours, utilisateurs distincts de l'heure ;
-- **aucune donnée personnelle** dans les mesures : l'adresse de l'utilisateur n'est jamais une
-  étiquette ; les utilisateurs distincts sont comptés dans Redis (HyperLogLog), seul le nombre sort ;
-- **Prometheus** découvre les pods du studio par l'API Kubernetes (les workers vont et viennent,
-  de zéro à quatre) et les lit toutes les cinq secondes ; il n'a que le droit de lister les pods de
-  l'espace `studio3d` ;
-- **Grafana** est provisionné par fichiers, versionnés avec le code : source de données, tableau
-  de bord et alerte « File du studio trop longue » (plus de cinq demandes en attente pendant
-  trente secondes). Rien ne se règle à la souris.
+- the **MCP server** and the **workers** publish Prometheus metrics (`studio/metrics.py`): calls
+  per MCP tool, render duration, wait in the queue, results, queue length, renders running,
+  distinct users of the hour;
+- **no personal data** in the metrics: the user's address is never a label; distinct users are
+  counted in Redis (HyperLogLog), only the number goes out;
+- **Prometheus** discovers the studio pods through the Kubernetes API (the workers come and go,
+  from zero to four) and reads them every five seconds; it is only allowed to list the pods of the
+  `studio3d` namespace;
+- **Grafana** is provisioned from files, versioned with the code: data source, dashboard and the
+  “Studio queue too long” alert (more than five requests waiting for thirty seconds). Nothing is
+  set up with the mouse.
 
-## Contenu
+## Contents
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `studio/metriques.py` | **Nouveau.** Mesures partagées par le serveur et les workers : compteur `studio_demandes_total` (étiquette `outil`), histogrammes `studio_rendu_duree_secondes` et `studio_attente_secondes`, compteur `studio_rendus_total` (étiquette `resultat`), collecteur qui lit Redis au passage de Prometheus (`studio_file_attente`, `studio_rendus_en_cours`, `studio_utilisateurs_heure`) |
-| `studio/api.py` | Serveur MCP du module 2, plus : chaque outil compte son appel, utilisateurs distincts comptés dans Redis, route `/metrics` (interne au cluster) |
-| `studio/travailleur.py` | Worker du module 2, plus : page des mesures sur le port 9101, attente mesurée, chronomètre autour du rendu, résultat compté |
-| `studio/commun.py`, `studio/rendu.py` | Inchangés depuis le module 2 (seule la liste des clés Redis du docstring s'enrichit) |
-| `studio/Dockerfile` | Image `studio3d:3` : celle du module 2, plus le client Prometheus (`prometheus-client==0.26.0`) |
-| `k8s-echelle.yaml` | Manifeste du module 2, plus : image `studio3d:3`, annotations `prometheus.io/scrape` et `prometheus.io/port` sur les pods, port `9101` des workers |
-| `observabilite/k8s.yaml` | Espace `observabilite`, compte de service et `Role` de Prometheus (lister les pods de `studio3d`, rien d'autre), Prometheus v3.13.4, Grafana 13.2.3, `Ingress` `grafana.localhost` |
-| `observabilite/prometheus.yml` | Une seule tâche : découverte des pods de `studio3d`, pods annotés gardés, port lu dans l'annotation |
-| `observabilite/grafana/sources.yaml` | Source Prometheus (`uid: prometheus`), non modifiable |
-| `observabilite/grafana/tableaux.yaml` | Fournisseur de tableaux : les fichiers JSON du dossier, modifications à la souris refusées |
-| `observabilite/grafana/alertes.yaml` | Règle « File du studio trop longue » : `max(studio_file_attente) > 5` pendant 30 s, évaluée toutes les 10 s |
-| `observabilite/tableaux/studio3d.json` | Tableau de bord `studio3d` (titres en français ; `.en.json` et `.de.json` : anglais et allemand, mêmes panneaux) |
-| `observabilite/deployer.sh` | Fichiers → ConfigMaps, secret de l'administrateur, manifeste, redémarrage |
-| `essai/agent-catalogue.sh` | Simule l'« agent catalogue » de la vidéo : douze demandes, puis l'état de chacune toutes les deux secondes |
-| `open-webui/` | En-tête d'identité de la connexion MCP et prompt système du modèle « Studio 3D » (inchangés) |
-| `.env.example` | Variables à renseigner (jeton, mot de passe Redis, mot de passe de l'administrateur de Grafana), sans valeur |
+| `studio/metrics.py` | **New.** Metrics shared by the server and the workers: counter `studio_requests_total` (label `tool`), histograms `studio_render_duration_seconds` and `studio_wait_seconds`, counter `studio_renders_total` (label `result`: `done`, `error`, `interrupted`), collector that reads Redis when Prometheus comes by (`studio_queue_waiting`, `studio_renders_running`, `studio_users_hour`) |
+| `studio/api.py` | Module 2 MCP server, plus: each tool counts its call, distinct users counted in Redis, `/metrics` route (internal to the cluster) |
+| `studio/worker.py` | Module 2 worker, plus: metrics page on port 9101, wait measured, timer around the render, result counted |
+| `studio/common.py`, `studio/render.py` | Unchanged since module 2 (only the list of Redis keys in the docstring grows) |
+| `studio/Dockerfile` | Image `studio3d:3`: the module 2 image, plus the Prometheus client (`prometheus-client==0.26.0`) |
+| `k8s-scale.yaml` | Module 2 manifest, plus: image `studio3d:3`, `prometheus.io/scrape` and `prometheus.io/port` annotations on the pods, port `9101` of the workers |
+| `observability/k8s.yaml` | `observability` namespace, Prometheus service account and `Role` (list the pods of `studio3d`, nothing else), Prometheus v3.13.4, Grafana 13.2.3, `Ingress` `grafana.localhost` |
+| `observability/prometheus.yml` | A single job: discovery of the `studio3d` pods, annotated pods kept, port read from the annotation |
+| `observability/grafana/sources.yaml` | Prometheus data source (`uid: prometheus`), not editable |
+| `observability/grafana/dashboards.yaml` | Dashboard provider: the JSON files of the folder, changes with the mouse refused |
+| `observability/grafana/alerts.yaml` | “Studio queue too long” rule: `max(studio_queue_waiting) > 5` for 30 s, evaluated every 10 s |
+| `observability/dashboards/studio3d.json` | `studio3d` dashboard (English titles; `.fr.json` and `.de.json`: French and German, same panels) |
+| `observability/deploy.sh` | Files → ConfigMaps, administrator secret, manifest, restart |
+| `test/catalog-agent.sh` | Simulates the “catalog agent” of the video: twelve requests, then the status of each one every two seconds |
+| `open-webui/` | Identity header of the MCP connection and system prompt of the “Studio 3D” model (unchanged) |
+| `.env.example` | Variables to fill in (token, Redis password, Grafana administrator password), without any value |
 
-## Prérequis
+## Prerequisites
 
-- Le studio à l'échelle du **module 2** (dépôt
-  [`clic-par-clic-studio3d-02-echelle`](https://github.com/guilhem-/clic-par-clic-studio3d-02-echelle)) :
-  Redis, KEDA 2.21, secret `studio`, connexion « Studio 3D » dans Open WebUI.
-- Docker, `kubectl` et un cluster Kubernetes. La vidéo utilise **k3d** (cluster `tterm`, Traefik
-  publié sur le port 8080 de la machine) ; `grafana.localhost` se résout tout seul vers la machine.
-- En plus du module 2 : environ 0,2 processeur et 512 Mo de mémoire pour Prometheus et Grafana.
+- The scaled studio of **module 2** (repository
+  [`clic-par-clic-studio3d-02-echelle`](https://github.com/guilhem-/clic-par-clic-studio3d-02-echelle)):
+  Redis, KEDA 2.21, `studio` secret, “Studio 3D” connection in Open WebUI.
+- Docker, `kubectl` and a Kubernetes cluster. The video uses **k3d** (cluster `tterm`, Traefik
+  published on port 8080 of the machine); `grafana.localhost` resolves to the machine by itself.
+- On top of module 2: about 0.2 CPU and 512 MB of memory for Prometheus and Grafana.
 
-## Installation pas à pas
+## Step-by-step installation
 
-1. **Image** du studio, avec les mesures :
+1. **Image** of the studio, with the metrics:
 
    ```bash
    docker build -t studio3d:3 studio
-   k3d image import studio3d:3 -c tterm      # k3d ; sinon, poussez l'image dans votre registre
+   k3d image import studio3d:3 -c tterm      # k3d; otherwise, push the image to your registry
    ```
 
-2. **Studio** : le manifeste porte l'image `studio3d:3` et les annotations Prometheus.
+2. **Studio**: the manifest carries the `studio3d:3` image and the Prometheus annotations.
 
    ```bash
-   kubectl apply -f k8s-echelle.yaml
+   kubectl apply -f k8s-scale.yaml
    kubectl -n studio3d rollout status deployment/studio-api
    ```
 
-   Contrôle, depuis un pod du cluster ou par un accès local :
+   Check, from a pod of the cluster or through a local access:
 
    ```bash
    kubectl -n studio3d port-forward svc/studio 8000:8000 &
    curl -s http://127.0.0.1:8000/metrics | grep ^studio_
    ```
 
-3. **Observabilité.** Copiez `.env.example` en `.env`, renseignez `GRAFANA_ADMIN` (par exemple
-   `openssl rand -hex 18`), puis :
+3. **Observability.** Copy `.env.example` to `.env`, fill in `GRAFANA_ADMIN` (for example
+   `openssl rand -hex 18`), then:
 
    ```bash
    set -a; . ./.env; set +a
-   ./observabilite/deployer.sh            # fr-FR par défaut ; en-US ou de-DE en argument
+   ./observability/deploy.sh              # en-US by default; fr-FR or de-DE as argument
    ```
 
-   Le tableau de bord s'ouvre sans compte (lecture anonyme) :
-   `http://grafana.localhost:8080/d/studio3d` (ajoutez `?kiosk` pour le plein écran).
-   Prometheus reste interne au cluster ; pour le consulter :
-   `kubectl -n observabilite port-forward svc/prometheus 9090:9090`.
+   The dashboard opens without an account (anonymous read access):
+   `http://grafana.localhost:8080/d/studio3d` (add `?kiosk` for full screen).
+   Prometheus stays internal to the cluster; to look at it:
+   `kubectl -n observability port-forward svc/prometheus 9090:9090`.
 
-4. **Essai.** Avec l'accès local de l'étape 2 et `STUDIO_JETON` dans l'environnement :
+4. **Try it.** With the local access of step 2 and `STUDIO_TOKEN` in the environment:
 
    ```bash
-   ./essai/agent-catalogue.sh
+   ./test/catalog-agent.sh
    ```
 
-   En même temps, demandez trois rendus depuis Open WebUI. Sur le tableau de bord : la file bondit,
-   KEDA démarre les workers, l'alerte passe à « Pending » puis « Firing » trente secondes plus tard ;
-   le panneau « Demandes par outil MCP » montre `etat_rendu` appelé des centaines de fois par minute.
-   Quand la file repasse sous cinq, l'alerte retombe ; une trentaine de secondes après le dernier
-   rendu, les workers s'arrêtent.
+   At the same time, ask for three renders from Open WebUI. On the dashboard: the queue jumps,
+   KEDA starts the workers, the alert switches to “Pending”, then to “Firing” thirty seconds later;
+   the “Requests per MCP tool” panel shows `render_status` called hundreds of times per minute.
+   When the queue goes back under five, the alert drops back; about thirty seconds after the last
+   render, the workers stop.
 
-## Points à connaître
+## Good to know
 
-- **`max()`, jamais `sum()`** pour la file : les deux copies du serveur publient la même longueur,
-  lue dans Redis. Les compteurs d'appels, eux, s'additionnent (`sum by (outil)`).
-- **Workers éphémères** : Prometheus les retrouve par l'API Kubernetes (`kubernetes_sd_configs`) ;
-  un worker arrêté disparaît simplement de la liste. Les histogrammes restent lisibles cinq minutes
-  (`rate(…[5m])`).
-- **Règles réseau** : celles du module 2 ne filtrent que la sortie des pods du studio ; Prometheus
-  peut donc les lire. Si vous ajoutez une règle d'entrée, autorisez l'espace `observabilite`.
-- **`/metrics`** n'est publié par aucun `Ingress` : seuls `/r/…` (rendus signés) le sont.
-- **Stockage temporaire** (`emptyDir`) : redémarrer Prometheus et Grafana remet courbes et
-  historique d'alerte à zéro. Conservation des mesures : un jour.
-- **Notification** : l'alerte est visible dans Grafana ; pour prévenir l'équipe (courriel,
-  messagerie), ajoutez un point de contact et une politique de notification, eux aussi provisionnables
-  par fichiers.
+- **`max()`, never `sum()`** for the queue: both copies of the server publish the same length,
+  read in Redis. The call counters, on the other hand, add up (`sum by (tool)`).
+- **Short-lived workers**: Prometheus finds them through the Kubernetes API
+  (`kubernetes_sd_configs`); a stopped worker simply disappears from the list. The histograms stay
+  readable for five minutes (`rate(…[5m])`).
+- **Network rules**: those of module 2 only filter the egress of the studio pods; Prometheus can
+  therefore read them. If you add an ingress rule, allow the `observability` namespace.
+- **`/metrics`** is published by no `Ingress`: only `/r/…` (signed renders) is.
+- **Temporary storage** (`emptyDir`): restarting Prometheus and Grafana resets the curves and the
+  alert history. Metrics retention: one day.
+- **Notification**: the alert is visible in Grafana; to notify the team (email, chat), add a
+  contact point and a notification policy, which can also be provisioned from files.
 
-## Pour la production
+## For production
 
-Ces manifestes simples servent à comprendre. En production, préférez le chart Helm
-`kube-prometheus-stack` (version épinglée : opérateur Prometheus, Alertmanager, exportateurs du
-cluster) ou un service géré, un stockage persistant, une conservation adaptée, et ajoutez au studio
-un **quota par utilisateur** et une **notification de fin de rendu** plutôt que de laisser les
-agents interroger en boucle.
+These simple manifests are meant to be understood. In production, prefer the
+`kube-prometheus-stack` Helm chart (pinned version: Prometheus operator, Alertmanager, cluster
+exporters) or a managed service, persistent storage, a suitable retention, and add to the studio a
+**quota per user** and a **notification when a render is finished** rather than letting agents
+poll in a loop.
 
-## Suite de la série
+## Next in the series
 
-- Module précédent : **Passer le studio à l'échelle** — dépôt
+- Previous module: **Scaling up the studio** — repository
   [`clic-par-clic-studio3d-02-echelle`](https://github.com/guilhem-/clic-par-clic-studio3d-02-echelle).
-- Module suivant : **Marquer les rendus générés par IA** (métadonnées IPTC et XMP, mention visible
-  au choix) — dépôt
+- Next module: **Marking AI-generated renders** (IPTC and XMP metadata, optional visible notice) —
+  repository
   [`clic-par-clic-studio3d-04-marquage`](https://github.com/guilhem-/clic-par-clic-studio3d-04-marquage).
 
-## Licence
+## License
 
-MIT, voir [`LICENSE`](LICENSE). Blender est distribué sous licence GPL par la Blender Foundation ;
-Redis, KEDA, Prometheus et Grafana sont des projets indépendants (Grafana : Grafana Labs). Cette
-série est indépendante des éditeurs des logiciels présentés.
+MIT, see [`LICENSE`](LICENSE). Blender is distributed under the GPL license by the Blender Foundation;
+Redis, KEDA, Prometheus and Grafana are independent projects (Grafana: Grafana Labs). This series is
+independent of the publishers of the software shown.

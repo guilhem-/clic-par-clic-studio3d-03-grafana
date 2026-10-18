@@ -1,0 +1,31 @@
+# Alert rule (module s3d03): more than five requests waiting for thirty seconds.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: studio3d
+    folder: 3D studio
+    interval: 10s               # evaluated every ten seconds
+    rules:
+      - uid: studio3d-long-queue
+        title: Studio queue too long
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: max(studio_queue_waiting), instant: true }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions: [{ evaluator: { type: gt, params: [5] } }]   # threshold: more than five requests
+        for: 30s                # for thirty seconds
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: More than five requests have been waiting for thirty seconds.
+          __dashboardUid__: studio3d   # link to the "Queue and workers" panel
+          __panelId__: "5"
+        labels: { service: studio3d }

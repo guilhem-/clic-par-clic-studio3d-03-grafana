@@ -1,24 +1,24 @@
-# Prometheus (module s3d03) : une seule tâche, les pods du studio 3D qui portent l'annotation.
+# Prometheus (module s3d03): a single job, the 3D studio pods that carry the annotation.
 global:
-  scrape_interval: 5s          # lecture des mesures toutes les cinq secondes
+  scrape_interval: 5s          # metrics read every five seconds
   evaluation_interval: 5s
 
 scrape_configs:
   - job_name: studio3d
-    # Les workers vont et viennent (KEDA, de zéro à quatre) : Prometheus demande la liste des pods
-    # à l'API Kubernetes et la tient à jour, au lieu d'adresses écrites à l'avance.
+    # The workers come and go (KEDA, from zero to four): Prometheus asks the Kubernetes API for the
+    # list of pods and keeps it up to date, instead of addresses written in advance.
     kubernetes_sd_configs:
       - role: pod
         namespaces: { names: [studio3d] }
     relabel_configs:
-      # Garder les pods annotés prometheus.io/scrape: "true", et seulement ceux qui tournent.
+      # Keep the pods annotated prometheus.io/scrape: "true", and only those that are running.
       - { source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape], regex: "true", action: keep }
       - { source_labels: [__meta_kubernetes_pod_phase], regex: Running, action: keep }
-      # Lire le port donné par l'annotation prometheus.io/port.
+      # Read the port given by the prometheus.io/port annotation.
       - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
         regex: '([^:]+)(?::\d+)?;(\d+)'
         replacement: '$1:$2'
         target_label: __address__
-      # Étiquettes lisibles : application (studio-api ou studio-travailleur) et nom du pod.
+      # Readable labels: application (studio-api or studio-worker) and pod name.
       - { source_labels: [__meta_kubernetes_pod_label_app], target_label: app }
       - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }

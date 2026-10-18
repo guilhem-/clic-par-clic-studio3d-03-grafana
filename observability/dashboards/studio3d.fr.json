@@ -1,6 +1,6 @@
 {
   "uid": "studio3d",
-  "title": "3D studio",
+  "title": "Studio 3D",
   "tags": [
     "studio3d",
     "clic-par-clic"
@@ -36,7 +36,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Waiting requests",
+      "title": "Demandes en attente",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -54,7 +54,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(studio_file_attente)",
+          "expr": "max(studio_queue_waiting)",
           "instant": true,
           "range": false
         }
@@ -103,7 +103,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Renders in progress",
+      "title": "Rendus en cours",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -121,7 +121,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(studio_rendus_en_cours)",
+          "expr": "max(studio_renders_running)",
           "instant": true,
           "range": false
         }
@@ -166,7 +166,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Active workers",
+      "title": "Workers actifs",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -184,7 +184,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"studio3d\", app=\"studio-travailleur\"} == 1) or vector(0)",
+          "expr": "count(up{job=\"studio3d\", app=\"studio-worker\"} == 1) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -229,7 +229,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Distinct users (hour)",
+      "title": "Utilisateurs distincts (heure)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -247,7 +247,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(studio_utilisateurs_heure)",
+          "expr": "max(studio_users_hour)",
           "instant": true,
           "range": false
         }
@@ -292,7 +292,7 @@
     {
       "id": 9,
       "type": "stat",
-      "title": "Failures (15 min)",
+      "title": "Échecs (15 min)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -310,7 +310,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(studio_rendus_total{resultat!=\"termine\"}[15m])) or vector(0)",
+          "expr": "sum(increase(studio_renders_total{result!=\"done\"}[15m])) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -359,7 +359,7 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Queue and workers",
+      "title": "File d'attente et workers",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -377,8 +377,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(studio_file_attente)",
-          "legendFormat": "Waiting requests",
+          "expr": "max(studio_queue_waiting)",
+          "legendFormat": "Demandes en attente",
           "range": true
         },
         {
@@ -387,8 +387,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(up{job=\"studio3d\", app=\"studio-travailleur\"} == 1) or vector(0)",
-          "legendFormat": "Active workers",
+          "expr": "count(up{job=\"studio3d\", app=\"studio-worker\"} == 1) or vector(0)",
+          "legendFormat": "Workers actifs",
           "range": true
         }
       ],
@@ -442,7 +442,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Waiting requests"
+              "options": "Demandes en attente"
             },
             "properties": [
               {
@@ -457,7 +457,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Active workers"
+              "options": "Workers actifs"
             },
             "properties": [
               {
@@ -475,7 +475,7 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Requests per MCP tool (per minute)",
+      "title": "Demandes par outil MCP (par minute)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -493,8 +493,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (outil) (rate(studio_demandes_total[1m])) * 60",
-          "legendFormat": "{{outil}}",
+          "expr": "sum by (tool) (rate(studio_requests_total[1m])) * 60",
+          "legendFormat": "{{tool}}",
           "range": true
         }
       ],
@@ -544,7 +544,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "etat_rendu"
+              "options": "render_status"
             },
             "properties": [
               {
@@ -559,7 +559,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "soumettre_rendu"
+              "options": "submit_render"
             },
             "properties": [
               {
@@ -574,7 +574,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "mes_rendus"
+              "options": "my_renders"
             },
             "properties": [
               {
@@ -592,7 +592,7 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Render duration",
+      "title": "Durée des rendus",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -610,8 +610,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(studio_rendu_duree_secondes_bucket[5m])))",
-          "legendFormat": "median",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(studio_render_duration_seconds_bucket[5m])))",
+          "legendFormat": "médiane",
           "range": true
         },
         {
@@ -620,8 +620,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(studio_rendu_duree_secondes_bucket[5m])))",
-          "legendFormat": "95th percentile",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(studio_render_duration_seconds_bucket[5m])))",
+          "legendFormat": "95e centile",
           "range": true
         }
       ],
@@ -670,7 +670,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "median"
+              "options": "médiane"
             },
             "properties": [
               {
@@ -685,7 +685,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "95th percentile"
+              "options": "95e centile"
             },
             "properties": [
               {
@@ -703,7 +703,7 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Wait before render",
+      "title": "Attente avant rendu",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -721,8 +721,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(studio_attente_secondes_bucket[5m])))",
-          "legendFormat": "95th percentile",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(studio_wait_seconds_bucket[5m])))",
+          "legendFormat": "95e centile",
           "range": true
         }
       ],
@@ -771,7 +771,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "95th percentile"
+              "options": "95e centile"
             },
             "properties": [
               {
@@ -789,7 +789,7 @@
     {
       "id": 10,
       "type": "alertlist",
-      "title": "Alerts",
+      "title": "Alertes",
       "gridPos": {
         "x": 16,
         "y": 13,

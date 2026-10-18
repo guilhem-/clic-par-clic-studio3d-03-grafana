@@ -1,0 +1,11 @@
+# Dashboard provider (module s3d03): the JSON files of the mounted folder.
+# No folder of its own: the "3D studio" folder is the one of the alert rule (alerts.yaml).
+apiVersion: 1
+providers:
+  - name: studio3d
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false       # the dashboard is changed in the versioned file, not with the mouse
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
